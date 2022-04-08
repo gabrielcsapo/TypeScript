@@ -214,13 +214,17 @@ namespace ts {
         originalWriteFile: CompilerHost["writeFile"] | undefined;
         originalReadFileWithCache: CompilerHost["readFile"];
         originalGetSourceFile: CompilerHost["getSourceFile"];
-        buildInfoCache: ESMap<Path, BuildInfo | false>;
     }
 
     interface FileWatcherWithModifiedTime {
         callbacks: FileWatcherCallback[];
         watcher: FileWatcher;
         modifiedTime: Date | undefined;
+    }
+
+    interface BuildInfoCacheEntry {
+        path: Path;
+        buildInfo: BuildInfo | false | string;
     }
 
     interface SolutionBuilderState<T extends BuilderProgram = BuilderProgram> extends WatchFactory<WatchType, ResolvedConfigFileName> {
@@ -243,6 +247,7 @@ namespace ts {
         readonly projectStatus: ESMap<ResolvedConfigFilePath, UpToDateStatus>;
         readonly buildInfoChecked: ESMap<ResolvedConfigFilePath, true>;
         readonly extendedConfigCache: ESMap<string, ExtendedConfigCacheEntry>;
+        readonly buildInfoCache: ESMap<ResolvedConfigFilePath, BuildInfoCacheEntry>;
 
         readonly builderPrograms: ESMap<ResolvedConfigFilePath, T>;
         readonly diagnostics: ESMap<ResolvedConfigFilePath, readonly Diagnostic[]>;
@@ -305,7 +310,7 @@ namespace ts {
             compilerHost.resolveTypeReferenceDirectives = (typeReferenceDirectiveNames, containingFile, redirectedReference, _options, containingFileMode) =>
                 loadWithTypeDirectiveCache<ResolvedTypeReferenceDirective>(Debug.checkEachDefined(typeReferenceDirectiveNames), containingFile, redirectedReference, containingFileMode, loader);
         }
-        compilerHost.getBuildInfo = fileName => getBuildInfo(state, fileName);
+        compilerHost.getBuildInfo = (fileName, configFilePath) => getBuildInfo(state, fileName, toResolvedConfigFilePath(state, configFilePath as ResolvedConfigFileName));
 
         const { watchFile, watchDirectory, writeLog } = createWatchFactory<ResolvedConfigFileName>(hostWithWatch, options);
 
@@ -328,6 +333,7 @@ namespace ts {
             projectStatus: new Map(),
             buildInfoChecked: new Map(),
             extendedConfigCache: new Map(),
+            buildInfoCache: new Map(),
 
             builderPrograms: new Map(),
             diagnostics: new Map(),
@@ -491,6 +497,7 @@ namespace ts {
         mutateMapSkippingNewValues(state.diagnostics, currentProjects, noopOnDelete);
         mutateMapSkippingNewValues(state.projectPendingBuild, currentProjects, noopOnDelete);
         mutateMapSkippingNewValues(state.projectErrorsReported, currentProjects, noopOnDelete);
+        mutateMapSkippingNewValues(state.buildInfoCache, currentProjects, noopOnDelete);
 
         // Remove watches for the program no longer in the solution
         if (state.watch) {
@@ -579,7 +586,6 @@ namespace ts {
             originalWriteFile,
             originalReadFileWithCache,
             originalGetSourceFile,
-            buildInfoCache: new Map(),
         };
     }
 
@@ -982,6 +988,7 @@ namespace ts {
             let newestDeclarationFileContentChangedTime: Date | undefined;
             const emitterDiagnostics = createDiagnosticCollection();
             const emittedOutputs = new Map<Path, string>();
+            const buildInfo = state.buildInfoCache.get(projectPath);
             outputFiles.forEach(({ name, text, writeByteOrderMark }) => {
                 if (resultFlags === BuildResultFlags.DeclarationOutputUnchanged && isDeclarationFile(name)) {
                     // Check for unchanged .d.ts files
@@ -995,7 +1002,7 @@ namespace ts {
 
                 const path = toPath(state, name);
                 emittedOutputs.set(path, name);
-                state.cache?.buildInfoCache.delete(path);
+                if (buildInfo?.path === path) buildInfo.buildInfo = text;
                 writeFile(writeFileCallback ? { writeFile: writeFileCallback } : compilerHost, emitterDiagnostics, name, text, writeByteOrderMark);
             });
 
@@ -1014,7 +1021,8 @@ namespace ts {
             Debug.assert(step === BuildStep.EmitBuildInfo);
             const emitResult = program.emitBuildInfo((name, data, writeByteOrderMark, onError, sourceFiles) => {
                 const path = toPath(state, name);
-                state.cache?.buildInfoCache.delete(path);
+                const buildInfo = state.buildInfoCache.get(projectPath);
+                if (buildInfo?.path === path) buildInfo.buildInfo = data;
                 if (writeFileCallback) writeFileCallback(name, data, writeByteOrderMark, onError, sourceFiles);
                 else state.compilerHost.writeFile(name, data, writeByteOrderMark, onError, sourceFiles);
             }, cancellationToken);
@@ -1114,10 +1122,11 @@ namespace ts {
             Debug.assert(!!outputFiles.length);
             const emitterDiagnostics = createDiagnosticCollection();
             const emittedOutputs = new Map<Path, string>();
+            const buildInfo = state.buildInfoCache.get(projectPath);
             outputFiles.forEach(({ name, text, writeByteOrderMark }) => {
                 const path = toPath(state, name);
                 emittedOutputs.set(path, name);
-                state.cache?.buildInfoCache.delete(path);
+                if (buildInfo?.path === path) buildInfo.buildInfo = text;
                 writeFile(writeFileCallback ? { writeFile: writeFileCallback } : compilerHost, emitterDiagnostics, name, text, writeByteOrderMark);
             });
 
@@ -1406,13 +1415,17 @@ namespace ts {
         };
     }
 
-    function getBuildInfo(state: SolutionBuilderState, buildInfoPath: string): BuildInfo | undefined {
+    function getBuildInfo(state: SolutionBuilderState, buildInfoPath: string, resolvedConfigPath: ResolvedConfigFilePath): BuildInfo | undefined {
         const path = toPath(state, buildInfoPath);
-        const existing = state.cache?.buildInfoCache.get(path);
-        if (existing !== undefined) return existing || undefined;
+        const existing = state.buildInfoCache.get(resolvedConfigPath);
+        if (existing !== undefined && existing.path === path) {
+            return isString(existing.buildInfo) ?
+                existing.buildInfo = ts.getBuildInfo(existing.buildInfo) :
+                existing.buildInfo || undefined;
+        }
         const value = state.readFileWithCache(buildInfoPath);
         const buildInfo = value ? ts.getBuildInfo(value) : undefined;
-        state.cache?.buildInfoCache.set(path, buildInfo || false);
+        state.buildInfoCache.set(resolvedConfigPath, { path, buildInfo: buildInfo || false });
         return buildInfo;
     }
 
@@ -1491,7 +1504,7 @@ namespace ts {
                 };
             }
 
-            const buildInfo = Debug.checkDefined(getBuildInfo(state, buildInfoPath));
+            const buildInfo = Debug.checkDefined(getBuildInfo(state, buildInfoPath, resolvedPath));
             if (!state.buildInfoChecked.has(resolvedPath)) {
                 state.buildInfoChecked.set(resolvedPath, true);
                 if (buildInfo && (buildInfo.bundle || buildInfo.program) && buildInfo.version !== version) {
