@@ -1664,6 +1664,8 @@ namespace ts {
 
     function updateOutputTimestampsWorker(state: SolutionBuilderState, proj: ParsedCommandLine, anyDtsChange: boolean, verboseMessage: DiagnosticMessage, newestDeclarationFileContentChangedTime?: Date, skipOutputs?: ESMap<Path, string>) {
         if (proj.options.noEmit) return undefined;
+
+        const buildInfoPath = getTsBuildInfoEmitOutputFilePath(proj.options);
         const { host } = state;
         const outputs = getAllProjectOutputs(proj, !host.useCaseSensitiveFileNames());
         if (!skipOutputs || outputs.length !== skipOutputs.size) {
@@ -1683,7 +1685,7 @@ namespace ts {
                     newestDeclarationFileContentChangedTime = newer(newestDeclarationFileContentChangedTime, ts.getModifiedTime(host, file));
                 }
 
-                host.setModifiedTime(file, now);
+                if (!buildInfoPath || file === buildInfoPath) host.setModifiedTime(file, now);
             }
         }
 
