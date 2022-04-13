@@ -182,9 +182,8 @@ sourceFile:sourceMapValidationDecorators.ts
 >>>    Greeter.prototype.fn = function (x) {
 1->^^^^
 2 >    ^^^^^^^^^^^^^^^^^^^^
-3 >                        ^^^
-4 >                           ^^^^^^^^^^
-5 >                                     ^
+3 >                        ^^^^^^^^^^^^^
+4 >                                     ^
 1->
   >
   >    @PropertyDecorator1
@@ -197,17 +196,15 @@ sourceFile:sourceMapValidationDecorators.ts
   >    
   >    private 
 2 >    fn
-3 >                        
-4 >                           private fn(
-  >                                 @ParameterDecorator1 
-  >                                 @ParameterDecorator2(70) 
-  >                                 
-5 >                                     x: number
+3 >                        (
+  >                              @ParameterDecorator1 
+  >                              @ParameterDecorator2(70) 
+  >                              
+4 >                                     x: number
 1->Emitted(21, 5) Source(35, 13) + SourceIndex(0)
 2 >Emitted(21, 25) Source(35, 15) + SourceIndex(0)
-3 >Emitted(21, 28) Source(35, 5) + SourceIndex(0)
-4 >Emitted(21, 38) Source(38, 7) + SourceIndex(0)
-5 >Emitted(21, 39) Source(38, 16) + SourceIndex(0)
+3 >Emitted(21, 38) Source(38, 7) + SourceIndex(0)
+4 >Emitted(21, 39) Source(38, 16) + SourceIndex(0)
 ---
 >>>        return this.greeting;
 1 >^^^^^^^^
@@ -455,29 +452,24 @@ sourceFile:sourceMapValidationDecorators.ts
 1->Emitted(42, 39) Source(29, 23) + SourceIndex(0)
 ---
 >>>    __decorate([
-1 >^^^^
-2 >    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^->
+>>>        __param(0, ParameterDecorator1),
+1 >^^^^^^^^
+2 >        ^^^^^^^^^^^
+3 >                   ^^^^^^^^^^^^^^^^^^^
+4 >                                      ^
+5 >                                       ^^^^^->
 1 >
   >
   >    @PropertyDecorator1
   >    @PropertyDecorator2(60)
   >    private static x1: number = 10;
   >    
-  >    
-1 >Emitted(43, 5) Source(35, 5) + SourceIndex(0)
----
->>>        __param(0, ParameterDecorator1),
-1->^^^^^^^^
-2 >        ^^^^^^^^^^^
-3 >                   ^^^^^^^^^^^^^^^^^^^
-4 >                                      ^
-5 >                                       ^^^^^->
-1->private fn(
+  >    private fn(
   >      @
 2 >        
 3 >                   ParameterDecorator1
 4 >                                      
-1->Emitted(44, 9) Source(36, 8) + SourceIndex(0)
+1 >Emitted(44, 9) Source(36, 8) + SourceIndex(0)
 2 >Emitted(44, 20) Source(36, 8) + SourceIndex(0)
 3 >Emitted(44, 39) Source(36, 27) + SourceIndex(0)
 4 >Emitted(44, 40) Source(36, 27) + SourceIndex(0)

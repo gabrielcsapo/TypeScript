@@ -3018,6 +3018,11 @@ namespace ts {
         return [child, node];
     }
 
+    export function skipTypeParentheses(node: TypeNode): TypeNode {
+        while (isParenthesizedTypeNode(node)) node = node.type;
+        return node;
+    }
+
     export function skipParentheses(node: Expression, excludeJSDocTypeAssertions?: boolean): Expression;
     export function skipParentheses(node: Node, excludeJSDocTypeAssertions?: boolean): Node;
     export function skipParentheses(node: Node, excludeJSDocTypeAssertions?: boolean): Node {
